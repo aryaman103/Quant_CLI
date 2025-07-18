@@ -8,9 +8,21 @@ from sklearn.pipeline import Pipeline
 from sklearn.ensemble import GradientBoostingRegressor
 import matplotlib.pyplot as plt
 import os
+from typing import Tuple
 
-def load_data(file_path):
-    """Loads and preprocesses the CSV data."""
+def load_data(file_path: str) -> pd.DataFrame:
+    """Loads and preprocesses the CSV data.
+    
+    Args:
+        file_path: Path to the CSV file containing OHLCV data
+        
+    Returns:
+        DataFrame with parsed dates as index and validated columns
+        
+    Raises:
+        FileNotFoundError: If the data file doesn't exist
+        ValueError: If required columns are missing or data is empty
+    """
     try:
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"Data file not found: {file_path}")
@@ -36,8 +48,19 @@ def load_data(file_path):
         print(f"Error loading data: {e}")
         raise
 
-def engineer_factors(df):
-    """Engineers features for the model."""
+def engineer_factors(df: pd.DataFrame) -> pd.DataFrame:
+    """Engineers technical analysis features for the model.
+    
+    Args:
+        df: DataFrame with OHLCV data
+        
+    Returns:
+        DataFrame with additional factor columns:
+        - momentum_10d: 10-day momentum
+        - sma_gap_20d: Gap from 20-day simple moving average
+        - atr_14d: 14-day Average True Range
+        - earnings_yield_proxy: Inverse of close price
+    """
     df['momentum_10d'] = df['close'] / df['close'].shift(10) - 1
     df['sma_gap_20d'] = df['close'] / df['close'].rolling(20).mean() - 1
     df['atr_14d'] = ta.volatility.AverageTrueRange(
@@ -46,8 +69,16 @@ def engineer_factors(df):
     df['earnings_yield_proxy'] = 1 / df['close']
     return df
 
-def run_backtest(df_test, predictions):
-    """Runs a simple weekly-rebalanced backtest."""
+def run_backtest(df_test: pd.DataFrame, predictions: np.ndarray) -> pd.DataFrame:
+    """Runs a simple weekly-rebalanced backtest.
+    
+    Args:
+        df_test: Test DataFrame with OHLCV data and target returns
+        predictions: Model predictions for next-day returns
+        
+    Returns:
+        DataFrame with backtest results including equity curve and signals
+    """
     df_test = df_test.copy()
     # Force index to be DatetimeIndex
     df_test.index = pd.to_datetime(df_test.index)
@@ -62,8 +93,15 @@ def run_backtest(df_test, predictions):
     df_test['equity_curve'] = (1 + df_test['strategy_return'].fillna(0)).cumprod()
     return df_test
 
-def calculate_metrics(equity_curve):
-    """Calculates performance metrics."""
+def calculate_metrics(equity_curve: pd.Series) -> Tuple[float, float, float]:
+    """Calculates performance metrics from equity curve.
+    
+    Args:
+        equity_curve: Time series of cumulative returns
+        
+    Returns:
+        Tuple of (CAGR, Sharpe ratio, Max drawdown)
+    """
     total_return = equity_curve.iloc[-1] - 1
     days = (equity_curve.index[-1] - equity_curve.index[0]).days
     cagr = (1 + total_return) ** (365.25 / days) - 1 if days > 0 else 0
@@ -80,8 +118,13 @@ def calculate_metrics(equity_curve):
     
     return cagr, sharpe_ratio, max_drawdown
 
-def plot_equity_curve(equity_curve, output_path):
-    """Saves the equity curve plot."""
+def plot_equity_curve(equity_curve: pd.Series, output_path: str) -> None:
+    """Saves the equity curve plot to file.
+    
+    Args:
+        equity_curve: Time series of cumulative returns
+        output_path: Path where the plot image will be saved
+    """
     plt.figure(figsize=(10, 6))
     equity_curve.plot(title='Equity Curve')
     plt.xlabel('Date')
@@ -91,8 +134,17 @@ def plot_equity_curve(equity_curve, output_path):
     plt.savefig(output_path)
     print(f"\nEquity curve saved to {output_path}")
 
-def main():
-    """Main function to run the factor engineering and backtesting CLI."""
+def main() -> None:
+    """Main function to run the factor engineering and backtesting CLI.
+    
+    Orchestrates the entire workflow:
+    1. Load and validate data
+    2. Engineer technical factors
+    3. Train ML model with hyperparameter optimization
+    4. Run backtest simulation
+    5. Calculate and display performance metrics
+    6. Generate equity curve visualization
+    """
     parser = argparse.ArgumentParser(description="FactorForge CLI Tool")
     parser.add_argument(
         '--csv',
