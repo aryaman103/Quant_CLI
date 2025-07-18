@@ -11,12 +11,30 @@ import os
 
 def load_data(file_path):
     """Loads and preprocesses the CSV data."""
-    df = pd.read_csv(
-        file_path,
-        parse_dates=['date'],
-        index_col='date'
-    )
-    return df
+    try:
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"Data file not found: {file_path}")
+        
+        df = pd.read_csv(
+            file_path,
+            parse_dates=['date'],
+            index_col='date'
+        )
+        
+        # Validate required columns
+        required_columns = ['open', 'high', 'low', 'close', 'volume']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            raise ValueError(f"Missing required columns: {missing_columns}")
+            
+        # Check for empty dataframe
+        if df.empty:
+            raise ValueError("Data file is empty")
+            
+        return df
+    except Exception as e:
+        print(f"Error loading data: {e}")
+        raise
 
 def engineer_factors(df):
     """Engineers features for the model."""
